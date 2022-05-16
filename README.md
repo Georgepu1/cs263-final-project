@@ -9,3 +9,13 @@
 - Lipschitz smoothing (enhance model by smoothing landscape): make transformations induced by model distort features drastically (take input and calculate gradient of current model w.r.t. input to tell you second order info of points (embedding) so sample around input point to see what does it look like => norm of gradient is differentiable to calculate the loss. 
 - Note: char level modification would make token out of the range (BPE with BERT/GPT-2), maybe not only one token affected but multiple (e.g. bigly has 2 tokens => bigily will still be two tokens for cases like really; adding a dash between bigly will add one character but it would affect embedding space drastically). 
 - pseudocode in pseudocode.py
+
+## Tasks
+- 1) dataset ingestion/pipeline
+- 2) setup: lstm+word2vec
+- 3) setup: BERT + classification (huggingface)
+- 4) setup: bart prompting (huggingface)
+- 5) train models in multitask hard parameter sharing
+- 6) adversarial attacks (char-word level attacks)
+- 7) robustness methods (lipschitz smoothing, random sampling/smoothing with https://github.com/uclanlp/Robust-XLT)
+- Extra: Presentation by 5/28 and Final Project
