@@ -201,16 +201,3 @@ class GenerativeModel(nn.Module):
         self.train()
 
         return final_output
-
-
-# initialize the model
-model = GenerativeModel(model_name, cache_dir, tokenizer)
-model.cuda(device=0)
-
-# optimizer
-param_groups = [{'params': model.parameters(), 'lr': learning_rate,
-                 'weight_decay': weight_decay}]
-optimizer = AdamW(params=param_groups)
-schedule = get_linear_schedule_with_warmup(optimizer,
-                                           num_warmup_steps=train_batch_num*warmup_epoch,
-                                           num_training_steps=train_batch_num*max_epoch)

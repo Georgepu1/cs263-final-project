@@ -10,13 +10,37 @@ import random
 from transformers import pipeline, AutoTokenizer, DataCollatorWithPadding, AutoModelForSequenceClassification, TrainingArguments, Trainer, AutoConfig
 from transformers import AutoConfig, AutoModelForPreTraining
 from transformers import AutoTokenizer, AdamW, get_linear_schedule_with_warmup
-
-
 from collections import namedtuple
 
 
-# Dataset for prompting (everything below)
+# Dataset for LSTM + Embedding / BERT
+class MultitaskDataset(torch.utils.data.Dataset):
+    def __init__(self, sst_X, sst_y, cola_X, cola_y, labels, max_len=10000):
+        assert len(sst_X) == len(sst_y), "SST data not one to one"
+        assert len(cola_X) == len(cola_y), "CoLA data not one to one"
 
+        self.max_len = max_len
+
+        min_samples = min(len(sst_X), len(cola_X))
+        sst_X = sst_X[:min(min_samples, max_len)]
+        sst_y = sst_y[:min(min_samples, max_len)]
+        cola_X = cola_X[:min(min_samples, max_len)]
+        cola_y = cola_y[:min(min_samples, max_len)]
+
+        self.sst_X = sst_X
+        self.sst_y = sst_y
+        self.cola_X = cola_X
+        self.cola_y = cola_y
+
+    def __len__(self):
+        return len(self.sst_X)
+
+    def __getitem__(self, index):
+        # Get element consisting of sst_X, sst_y, cola_X, and cola_y
+        return (self.sst_X[index], self.sst_y[index], self.cola_X[index], self.cola_y[index])
+
+
+# Dataset for prompting (everything below)
 gen_batch_fields = ['input_text', 'target_text', 'enc_idxs', 'enc_attn',
                     'dec_idxs', 'dec_attn', 'lbl_idxs', 'raw_lbl_idxs', 'infos']
 GenBatch = namedtuple('GenBatch', field_names=gen_batch_fields, defaults=[
@@ -24,7 +48,7 @@ GenBatch = namedtuple('GenBatch', field_names=gen_batch_fields, defaults=[
 
 
 class GenDataset(Dataset):
-    def __init__(self, tokenizer, max_length, data, replace_words, max_data_count, max_output_length=None, unseen_types=[], no_bos=False):
+    def __init__(self, tokenizer, max_length, data, label, max_data_count, max_output_length=10000, no_bos=False):
         self.tokenizer = tokenizer
         self.max_length = self.max_output_length = max_length
         if max_output_length is not None:
@@ -32,7 +56,7 @@ class GenDataset(Dataset):
         # if you use bart, then this should be False; if you use t5, then this should be True
         self.no_bos = no_bos
         self.data = []
-        self.load_data(data, replace_words, unseen_types, max_data_count)
+        self.load_data(data, label, max_data_count)
 
     def __len__(self):
         return len(self.data)
@@ -40,42 +64,20 @@ class GenDataset(Dataset):
     def __getitem__(self, item):
         return self.data[item]
 
-    def load_data(self, data, replace_words, unseen_types, max_data_count, cased=True, max_attempts=10):
+    def get_prompt(self, type):
+        pass
+
+    def load_data(self, data, label, prompt_type, max_data_count):
 
         for d in data:
             if len(self.data) == max_data_count:
                 break
-            # Format the data with prompt, random replacement words "from => to" and expected output
-            replace_words = None
-            attempts = 0
-            while replace_words is None and attempts < max_attempts:
-                attempts += 1
-                cur_replace_words = random.sample(replace_words, 2)
-                cur_split_data = d.split()
-
-                if cased:
-                    if (cur_replace_words[0] in cur_split_data or cur_replace_words[1] in cur_split_data):
-                        replace_words = cur_replace_words
-                elif (cur_replace_words[0].capitalize() in cur_split_data or cur_replace_words[1].capitalize() in cur_split_data or
-                      cur_replace_words[0] in cur_split_data or cur_replace_words[1] in cur_split_data or
-                      cur_replace_words[0].lower() in cur_split_data or cur_replace_words[1].lower() in cur_split_data):
-                    replace_words = cur_replace_words
-
-            if attempts >= 10 or replace_words is None:
-                continue
-            cur_input = d + ' <sep> ' + \
-                'Replace {} with {}: '.format(
-                    replace_words[0], replace_words[1])
-            # change output to modify input val to expected output val for all variants
-            # expected_output = d.replace(" " + replace_words[0].capitalize() + " ", " " + replace_words[1].capitalize() + " ")
-            expected_output = d.replace(
-                " " + replace_words[0] + " ", " " + replace_words[1] + " ")
-            # expected_output = d.replace(" " + replace_words[0].lower() + " ", " " + replace_words[1].lower() + " ")
+            cur_input = d + ' <sep> ' + self.get_prompt(prompt_type)
 
             self.data.append({
                 'input': cur_input,
-                'target': expected_output,
-                'info': replace_words
+                'target': str(label),
+                'info': prompt_type
             })
 
     def collate_fn(self, batch):
