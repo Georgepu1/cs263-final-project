@@ -47,6 +47,9 @@ def load_glove_vectors(glove_file="./data/glove.6B/glove.6B.50d.txt"):
             word_vectors[split[0]] = np.array([float(x) for x in split[1:]])
     return word_vectors
 
+# Download from here https://drive.google.com/file/d/0B7XkCwpI5KDYNlNUTTlSS21pQmM/edit?resourcekey=0-wjGZdNAUop6WykTtMip30g and unzip the file
+# put GoogleNews-vectors-negative300.bin in /data direction
+
 
 def load_word2vec():
     from gensim.models import Word2Vec
